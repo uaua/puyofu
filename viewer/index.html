@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ぷよ譜ビューア</title>
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e2e2de;
+  --accent: #2f6fdf; --field: #23252b; --field-line: #31343b; --row13: #1a1b20;
+  --R: #e5484d; --G: #30a46c; --B: #3e7bfa; --Y: #f5b919; --P: #8e4ec6; --O: #c9cbd1;
+  --warn: #c2410c; --hl: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121316; --panel: #1b1c20; --text: #ececee; --muted: #9a9aa2; --line: #2c2d33;
+    --accent: #6c9cff; --field: #0d0e11; --field-line: #22242a; --row13: #08090b; --warn: #fb923c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121316; --panel: #1b1c20; --text: #ececee; --muted: #9a9aa2; --line: #2c2d33;
+  --accent: #6c9cff; --field: #0d0e11; --field-line: #22242a; --row13: #08090b; --warn: #fb923c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+.app { display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+aside header { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+aside h1 { font-size: 16px; margin: 0 0 8px; }
+#search { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+#tree { overflow: auto; flex: 1; padding: 6px 0; }
+details > summary { cursor: pointer; padding: 5px 14px; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.list-sum { font-weight: 600; }
+.vid-sum { padding-left: 24px !important; color: var(--text); font-size: 13px; }
+.vid-sum small { color: var(--muted); }
+.games { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 14px 8px 32px; }
+.games button { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 1px 7px;
+  font-size: 12px; cursor: pointer; min-width: 34px; }
+.games button.w1 { border-left: 3px solid var(--accent); }
+.games button.w2 { border-right: 3px solid var(--R); }
+.games button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+main { overflow: auto; padding: 16px 20px 40px; min-width: 0; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 10px; }
+.top h2 { font-size: 18px; margin: 0; }
+.top .meta { color: var(--muted); font-size: 13px; }
+.top a { color: var(--accent); }
+.stage { display: grid; grid-template-columns: auto auto; gap: 18px; justify-content: start; align-items: start; }
+.stage.withvideo { grid-template-columns: auto auto minmax(280px, 1fr); }
+.player { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.pname { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.pname b { font-size: 15px; }
+.pname .win { color: var(--accent); font-weight: 600; font-size: 12px; }
+.prow { display: flex; gap: 8px; align-items: flex-start; }
+.nexts { display: flex; flex-direction: column; gap: 6px; align-items: center; padding-top: 4px; }
+.nexts span { font-size: 10px; color: var(--muted); }
+.info { margin-top: 8px; font-size: 13px; min-height: 42px; }
+.info .k { color: var(--muted); }
+.info .chain { color: var(--R); font-weight: 700; }
+.info .unc { color: var(--warn); font-weight: 600; }
+.info .oj { color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 6px; }
+.controls button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 11px; cursor: pointer; }
+.controls button:hover { border-color: var(--accent); }
+.controls button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+#slider { flex: 1; min-width: 160px; accent-color: var(--accent); }
+.status { color: var(--muted); font-size: 13px; }
+.video { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.video .frame { position: relative; width: 100%; aspect-ratio: 16/9; }
+.video .frame > div, .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 8px; }
+.video label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.empty { color: var(--muted); padding: 60px 0; text-align: center; }
+.legend { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.menu { display: none; }
+svg text { font-family: inherit; }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  aside { position: fixed; inset: 0 30% 0 0; z-index: 5; transform: translateX(-102%); transition: transform .2s; }
+  aside.open { transform: none; box-shadow: 0 0 30px rgba(0,0,0,.3); }
+  .menu { display: inline-block; }
+  main { padding: 12px 16px 40px; }
+  .stage, .stage.withvideo { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stage .video { grid-column: 1 / -1; }
+  .player { padding: 6px; }
+  .player svg.board { width: 100%; height: auto; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side">
+    <header>
+      <h1>ぷよ譜ビューア</h1>
+      <input id="search" type="search" placeholder="名前・リストで絞り込み">
+    </header>
+    <div id="tree"></div>
+  </aside>
+  <main>
+    <div class="top">
+      <button class="menu" id="menuBtn">☰ 一覧</button>
+      <h2 id="title">局を選んでください</h2>
+      <span class="meta" id="meta"></span>
+    </div>
+    <div id="view" hidden>
+      <div class="stage" id="stage">
+        <div class="player" id="p1"></div>
+        <div class="player" id="p2"></div>
+        <div class="video" id="video" hidden>
+          <div class="frame"><div id="yt"></div></div>
+          <label><input type="checkbox" id="follow"> 動画の再生に盤面を合わせる</label>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="first" title="最初 (Home)">⏮</button>
+        <button id="prev" title="1手戻る (←)">◀</button>
+        <button id="play" title="自動再生 (Space)">▶ 再生</button>
+        <button id="next" title="1手進む (→)">▶</button>
+        <button id="last" title="最後 (End)">⏭</button>
+        <select id="speed" title="自動再生の速さ">
+          <option value="1">実時間</option><option value="2" selected>2倍</option>
+          <option value="4">4倍</option><option value="0">1手ずつ</option>
+        </select>
+        <input type="range" id="slider" min="0" value="0">
+        <span class="status" id="status"></span>
+        <button id="vidBtn">動画を表示</button>
+        <button id="theme" title="表示テーマ">◐</button>
+      </div>
+      <div class="legend">← → で1手ずつ、Space で自動再生。白い枠は直前に置いた組、斜線は確定できなかったマス、⚠ は確度の低い手です。13段目（最上段）は画面外の段です。</div>
+    </div>
+    <div class="empty" id="emptyMsg">左の一覧から局を選ぶと、両者の盤面を1手ずつ再生できます。</div>
+  </main>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const COLORS = { R: "var(--R)", G: "var(--G)", B: "var(--B)", Y: "var(--Y)", P: "var(--P)", O: "var(--O)" };
+const CELL = 30, ROWS = 13, COLS = 6;
+let INDEX = [], game = null, events = [], cur = 0, timer = null, ytPlayer = null, ytReady = false, current = null;
+
+// ------------------------------------------------------------ index / tree
+async function loadIndex() {
+  try {
+    // public release: ../data/index.json (one file per video); local: index.json
+    let r = await fetch("../data/index.json", { cache: "no-store" }).catch(() => null);
+    if (!r || !r.ok) r = await fetch("index.json", { cache: "no-store" });
+    INDEX = await r.json();
+  } catch (e) {
+    $("tree").innerHTML = '<p style="padding:14px;color:var(--muted)">index.json を読めません。build_index.py を実行し、プロジェクトのフォルダで python -m http.server を起動してください。</p>';
+    return;
+  }
+  renderTree("");
+  const h = parseHash();
+  if (h.file) openGame(h.file, +h.i || 0);
+}
+
+function renderTree(q) {
+  q = q.trim().toLowerCase();
+  const tree = $("tree");
+  tree.textContent = "";
+  for (const L of INDEX) {
+    const vids = L.videos.filter(v => !q || (L.list + v.title + v.players.join(" ")).toLowerCase().includes(q));
+    if (!vids.length) continue;
+    const d = document.createElement("details");
+    if (q) d.open = true;
+    const s = document.createElement("summary");
+    s.className = "list-sum";
+    s.textContent = `${L.list}（${vids.length}）`;
+    d.appendChild(s);
+    for (const v of vids) {
+      const dv = document.createElement("details");
+      const sv = document.createElement("summary");
+      sv.className = "vid-sum";
+      const w1 = v.games.filter(g => g.winner === "1P").length, w2 = v.games.filter(g => g.winner === "2P").length;
+      sv.innerHTML = "";
+      sv.append(`${v.players[0]} vs ${v.players[1]} `);
+      const sm = document.createElement("small");
+      sm.textContent = `${w1}-${w2}・${v.games.length}局`;
+      sv.appendChild(sm);
+      dv.appendChild(sv);
+      dv.addEventListener("toggle", () => {
+        if (!dv.open || dv.querySelector(".games")) return;
+        const box = document.createElement("div");
+        box.className = "games";
+        for (const g of v.games) {
+          const b = document.createElement("button");
+          b.textContent = g.g;
+          b.title = `${g.start}〜 勝者 ${g.winner || "?"}・最大${g.maxchain}連鎖`;
+          b.className = g.winner === "1P" ? "w1" : g.winner === "2P" ? "w2" : "";
+          const key = gameKey(v, g);
+          b.dataset.file = key;
+          b.onclick = () => { openGame(key, 0); $("side").classList.remove("open"); };
+          box.appendChild(b);
+        }
+        dv.appendChild(box);
+        markActive();
+      });
+      d.appendChild(dv);
+    }
+    tree.appendChild(d);
+  }
+}
+
+function markActive() {
+  document.querySelectorAll(".games button").forEach(b => b.classList.toggle("on", current && b.dataset.file === current));
+}
+
+// ------------------------------------------------------------ game
+async function openGame(file, i) {
+  stop();
+  game = await loadGame(file);
+  current = file;
+  const meta = findMeta(file);
+  events = [];
+  for (const side of ["1P", "2P"]) {
+    let lastT = 0;
+    (game.moves[side] || []).forEach((m, k) => {
+      const t = (m.t ?? lastT);
+      lastT = t;
+      events.push({ side, k, t });
+    });
+  }
+  events.sort((a, b) => a.t - b.t || (a.side < b.side ? -1 : 1));
+  $("slider").max = events.length;
+  const p = game.players;
+  $("title").textContent = `${p[0].name} vs ${p[1].name}`;
+  const vid = (game.source.match(/v=([\w-]+)/) || [])[1];
+  const gl = meta ? `第${meta.g.g}局・` : "";
+  $("meta").innerHTML = "";
+  $("meta").append(`${gl}${game.video_start}〜・勝者 ${game.winner ? nameOf(game.winner) : "不明"}・色 ${game.colors}・種 ${game.seed ?? "-"} `);
+  const a = document.createElement("a");
+  a.href = `https://www.youtube.com/watch?v=${vid}&t=${toSec(game.video_start)}s`;
+  a.target = "_blank"; a.rel = "noopener"; a.textContent = "YouTube で開く";
+  $("meta").appendChild(a);
+  if (game.first_observed_move) $("meta").append(`（${game.first_observed_move}手目から記録）`);
+  $("view").hidden = false;
+  $("emptyMsg").hidden = true;
+  markActive();
+  if (ytPlayer && ytReady && vid) ytPlayer.cueVideoById({ videoId: vid, startSeconds: toSec(game.video_start) });
+  game._vid = vid;
+  go(Math.min(i, events.length));
+}
+
+function findMeta(file) {
+  for (const L of INDEX) for (const v of L.videos) for (const g of v.games) if (gameKey(v, g) === file) return { v, g };
+  return null;
+}
+// a game is "<per-game file>" (local) or "<per-video file>#<index>" (release)
+const gameKey = (v, g) => v.file ? `${v.file}#${g.gi}` : g.file;
+const VCACHE = new Map();
+async function loadGame(key) {
+  const [file, gi] = key.split("#");
+  if (gi === undefined) return (await fetch("../" + file)).json();
+  if (!VCACHE.has(file)) VCACHE.set(file, fetch("../" + file).then(r => r.json()));
+  const doc = await VCACHE.get(file);
+  return doc.games[+gi];
+}
+const nameOf = (side) => game.players.find(p => p.side === side)?.name || side;
+const toSec = (s) => s.split(":").reduce((a, x) => a * 60 + (+x), 0);
+const fmt = (t) => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
+
+function stateAt(i) {
+  const idx = { "1P": -1, "2P": -1 };
+  for (let j = 0; j < i; j++) idx[events[j].side] = events[j].k;
+  return idx;
+}
+
+function boardOf(side, k) {
+  const ms = game.moves[side] || [];
+  for (let j = k; j >= 0; j--) if (ms[j] && ms[j].board_after) return ms[j].board_after;
+  return Array(ROWS).fill("......");
+}
+
+function go(i) {
+  cur = Math.max(0, Math.min(events.length, i));
+  $("slider").value = cur;
+  const st = stateAt(cur);
+  const lastSide = cur > 0 ? events[cur - 1].side : null;
+  for (const side of ["1P", "2P"]) renderPlayer(side, st[side], side === lastSide);
+  const t = cur > 0 ? events[cur - 1].t : toSec(game.video_start);
+  $("status").textContent = `${cur} / ${events.length}・${fmt(t)}`;
+  history.replaceState(null, "", `#file=${encodeURIComponent(current)}&i=${cur}`);
+  if (!following() && ytPlayer && ytReady && !$("video").hidden) {
+    ytPlayer.seekTo(Math.max(0, t - 0.3), true);
+  }
+}
+
+// ------------------------------------------------------------ drawing
+function landing(prevBoard, m) {
+  if (!m || m.col == null || m.chain > 0) return [];
+  const h = (x) => { let y = 0; while (y < ROWS && prevBoard[ROWS - 1 - y][x] !== ".") y++; return y; };
+  const x = m.col - 1, dx = { right: 1, left: -1 }[m.dir] || 0;
+  if (!dx) { const y = h(x); return [[x, y], [x, y + 1]]; }
+  return [[x, h(x)], [x + dx, h(x + dx)]];
+}
+
+function renderPlayer(side, k, isLast) {
+  const el = $(side === "1P" ? "p1" : "p2");
+  const ms = game.moves[side] || [];
+  const m = k >= 0 ? ms[k] : null;
+  const board = k >= 0 ? boardOf(side, k) : Array(ROWS).fill("......");
+  const prev = k > 0 ? boardOf(side, k - 1) : Array(ROWS).fill("......");
+  const hl = landing(prev, m);
+  const nx = m ? [m.next, m.next2] : nextAtStart(side);
+  el.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "pname";
+  const b = document.createElement("b"); b.textContent = `${nameOf(side)}`;
+  head.appendChild(b);
+  const sm = document.createElement("span");
+  sm.className = game.winner === side ? "win" : "";
+  sm.textContent = side + (game.winner === side ? "・勝ち" : "");
+  head.appendChild(sm);
+  el.appendChild(head);
+  const row = document.createElement("div");
+  row.className = "prow";
+  row.appendChild(drawBoard(board, hl, isLast));
+  const nexts = document.createElement("div");
+  nexts.className = "nexts";
+  nexts.innerHTML = "<span>NEXT</span>";
+  nexts.appendChild(drawPair(nx[0], 1));
+  nexts.insertAdjacentHTML("beforeend", "<span>NEXT2</span>");
+  nexts.appendChild(drawPair(nx[1], 0.8));
+  row.appendChild(nexts);
+  el.appendChild(row);
+  const info = document.createElement("div");
+  info.className = "info";
+  if (m) {
+    const dirJ = { up: "上", right: "右", down: "下", left: "左" }[m.dir] || "?";
+    const parts = [`<span class="k">${m.n}手目</span> ${pairHtml(m.pair)} `,
+      m.col == null ? `<span class="unc">置き方不明</span>` : `${m.col}列・子${dirJ}`];
+    if (m.chain) parts.push(` <span class="chain">${m.chain}連鎖</span>`);
+    if (m.ojama_before) parts.push(` <span class="oj">おじゃま${m.ojama_before}個の後</span>`);
+    if (m.uncertain) parts.push(` <span class="unc">⚠不確か</span>`);
+    info.innerHTML = parts.join("");
+  } else {
+    info.innerHTML = `<span class="k">開始前</span>`;
+  }
+  el.appendChild(info);
+}
+
+function nextAtStart(side) {
+  const t = game.tsumo;
+  const first = (game.moves[side] || [])[0];
+  if (t && first) return [t[first.n - 1], t[first.n]];
+  return [null, null];
+}
+
+const pairHtml = (p) => p ? p.split("").map(c => `<span style="color:${COLORS[c] || "inherit"}">●</span>`).join("") : "";
+
+function svgEl(tag, attrs) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function puyo(svg, cx, cy, r, c) {
+  if (c === "?") {
+    svg.appendChild(svgEl("circle", { cx, cy, r, fill: "url(#hatch)", stroke: "var(--muted)", "stroke-width": 1 }));
+    return;
+  }
+  svg.appendChild(svgEl("circle", { cx, cy, r, fill: COLORS[c] || "#888" }));
+  if (c === "O") {
+    svg.appendChild(svgEl("circle", { cx: cx - r * .35, cy: cy - r * .1, r: r * .13, fill: "#555" }));
+    svg.appendChild(svgEl("circle", { cx: cx + r * .35, cy: cy - r * .1, r: r * .13, fill: "#555" }));
+  } else {
+    svg.appendChild(svgEl("circle", { cx: cx - r * .35, cy: cy - r * .3, r: r * .22, fill: "rgba(255,255,255,.55)" }));
+  }
+}
+
+function drawBoard(board, hl, isLast) {
+  const W = COLS * CELL, H = ROWS * CELL;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: "board" });
+  const defs = svgEl("defs", {});
+  const pat = svgEl("pattern", { id: "hatch", width: 5, height: 5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+  pat.appendChild(svgEl("rect", { width: 5, height: 5, fill: "transparent" }));
+  pat.appendChild(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 5, stroke: "var(--muted)", "stroke-width": 2 }));
+  defs.appendChild(pat);
+  svg.appendChild(defs);
+  svg.appendChild(svgEl("rect", { width: W, height: H, rx: 6, fill: "var(--field)" }));
+  svg.appendChild(svgEl("rect", { width: W, height: CELL, fill: "var(--row13)" }));
+  for (let x = 1; x < COLS; x++) svg.appendChild(svgEl("line", { x1: x * CELL, y1: 0, x2: x * CELL, y2: H, stroke: "var(--field-line)" }));
+  svg.appendChild(svgEl("line", { x1: 0, y1: CELL, x2: W, y2: CELL, stroke: "var(--field-line)", "stroke-dasharray": "3 3" }));
+  // the X on column 3, row 12
+  const xc = 2.5 * CELL, yc = 1.5 * CELL, d = CELL * .22;
+  svg.appendChild(svgEl("path", { d: `M${xc - d} ${yc - d}L${xc + d} ${yc + d}M${xc + d} ${yc - d}L${xc - d} ${yc + d}`,
+    stroke: "var(--R)", "stroke-width": 3, opacity: .55 }));
+  for (let r = 0; r < ROWS; r++) {
+    const line = board[r] || "......";
+    for (let x = 0; x < COLS; x++) {
+      const c = line[x];
+      if (c === "." || c === undefined) continue;
+      const g = svgEl("g", r === 0 ? { opacity: .6 } : {});
+      puyo(g, x * CELL + CELL / 2, r * CELL + CELL / 2, CELL * .43, c);
+      svg.appendChild(g);
+    }
+  }
+  for (const [x, y] of hl) {
+    if (y >= ROWS) continue;
+    const r = ROWS - 1 - y;
+    svg.appendChild(svgEl("rect", { x: x * CELL + 2, y: r * CELL + 2, width: CELL - 4, height: CELL - 4, rx: 7,
+      fill: "none", stroke: "var(--hl)", "stroke-width": isLast ? 2.5 : 1.2, opacity: isLast ? 1 : .5 }));
+  }
+  return svg;
+}
+
+function drawPair(p, s) {
+  const c = CELL * s, svg = svgEl("svg", { width: c, height: c * 2, viewBox: `0 0 ${c} ${c * 2}` });
+  if (p) {
+    puyo(svg, c / 2, c / 2, c * .42, p[1]);        // child on top
+    puyo(svg, c / 2, c * 1.5, c * .42, p[0]);      // axis below
+  }
+  return svg;
+}
+
+// ------------------------------------------------------------ playback
+function stop() { clearTimeout(timer); timer = null; $("play").textContent = "▶ 再生"; $("play").classList.remove("on"); }
+function play() {
+  if (following()) { ytPlayer.playVideo(); return; }
+  if (cur >= events.length) go(0);
+  $("play").textContent = "❚❚ 停止"; $("play").classList.add("on");
+  const step = () => {
+    if (cur >= events.length) { stop(); return; }
+    const sp = +$("speed").value;
+    const dt = sp === 0 ? 700 : Math.max(60, Math.min(3000, ((events[cur]?.t ?? 0) - (events[cur - 1]?.t ?? events[cur]?.t ?? 0)) * 1000 / sp));
+    timer = setTimeout(() => { go(cur + 1); step(); }, cur === 0 ? 300 : dt);
+  };
+  step();
+}
+const following = () => $("follow").checked && ytPlayer && ytReady && !$("video").hidden;
+
+$("first").onclick = () => { stop(); go(0); };
+$("last").onclick = () => { stop(); go(events.length); };
+$("prev").onclick = () => { stop(); go(cur - 1); };
+$("next").onclick = () => { stop(); go(cur + 1); };
+$("play").onclick = () => timer ? stop() : play();
+$("slider").oninput = (e) => { stop(); go(+e.target.value); };
+$("search").oninput = (e) => renderTree(e.target.value);
+$("menuBtn").onclick = () => $("side").classList.toggle("open");
+$("theme").onclick = () => {
+  const r = document.documentElement, dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const now = r.dataset.theme || (dark ? "dark" : "light");
+  r.dataset.theme = now === "dark" ? "light" : "dark";
+  try { localStorage.setItem("puyofu-theme", r.dataset.theme); } catch (e) {}
+};
+try { const t = localStorage.getItem("puyofu-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+document.addEventListener("keydown", (e) => {
+  if (!game || e.target.tagName === "INPUT" && e.target.type === "search") return;
+  if (e.key === "ArrowRight") { stop(); go(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { stop(); go(cur - 1); e.preventDefault(); }
+  else if (e.key === " ") { timer ? stop() : play(); e.preventDefault(); }
+  else if (e.key === "Home") { stop(); go(0); }
+  else if (e.key === "End") { stop(); go(events.length); }
+});
+
+function parseHash() {
+  const o = {};
+  location.hash.slice(1).split("&").forEach(kv => { const [k, v] = kv.split("="); if (k) o[k] = decodeURIComponent(v || ""); });
+  return o;
+}
+
+// ------------------------------------------------------------ YouTube
+$("vidBtn").onclick = () => {
+  const v = $("video");
+  v.hidden = !v.hidden;
+  $("stage").classList.toggle("withvideo", !v.hidden);
+  $("vidBtn").textContent = v.hidden ? "動画を表示" : "動画を隠す";
+  if (!v.hidden && !ytPlayer) {
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(s);
+  }
+};
+window.onYouTubeIframeAPIReady = () => {
+  ytPlayer = new YT.Player("yt", {
+    videoId: game?._vid, playerVars: { start: game ? toSec(game.video_start) : 0, rel: 0 },
+    events: { onReady: () => { ytReady = true; go(cur); } },
+  });
+};
+setInterval(() => {
+  if (!following() || !game) return;
+  const t = ytPlayer.getCurrentTime();
+  let i = 0;
+  while (i < events.length && events[i].t <= t) i++;
+  if (i !== cur) go(i);
+}, 200);
+
+loadIndex();
+</script>
+</body>
+</html>
