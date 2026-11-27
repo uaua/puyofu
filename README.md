@@ -37,6 +37,9 @@ https://uaua.github.io/puyofu/viewer/
 | `chain` | この手の連鎖数 |
 | `board_after` | 連鎖とおじゃまの落下が終わった後の盤面。13段目から下へ各段6文字。R G B Y P は色、O はおじゃま、. は空き、? は不明 |
 | `ojama_before` | この手の前に降ったおじゃまの数 |
+| `winner` | 勝った側（1P / 2P）。分からないときは null |
+| `ended` | `no_death`: どちらも倒れずに終わった局（中断など）、`unseen`: 決着の場面が映っていない局 |
+| `winner_inferred` | 決着は映っていないが、N本先取の勝敗数から決めた勝者 |
 | `seed`, `tsumo` | ツモの種と、その局のツモ列 |
 | `uncertain` | 置き方か盤面に不確かな部分がある手 |
 | `same_result` | 別の置き方でも同じ盤面になる場合の、その置き方 |
